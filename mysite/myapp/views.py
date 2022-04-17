@@ -1,12 +1,21 @@
 from asyncio.windows_events import NULL
 import email
+from logging import warning
+from pydoc import cli
+from telnetlib import LOGOUT
+from wsgiref.util import request_uri
 from django.shortcuts import render
 import os
 from django.conf import settings
 from django.core.files import File
-from myapp.models import Account
 from django.contrib.auth.hashers import make_password
 from django.contrib.auth.models import User
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.decorators import login_required
+import json
+from myapp.models import SpendingProfile, Entry
+
+client_user = NULL
 
 def index(request):
     # Check the method type for GET or POST
@@ -21,13 +30,12 @@ def index(request):
             return render(request, 'index.html')
         # If they request to create a new spending profile
         elif 'create_new_profile' in request.GET:
-            return render(request, 'profile_creation.html')
+            return render(request, "profile_creation.html")
+            #direct_to_profile_creation_page(request)
         # If they cancel spending profile creation, return to main page
         elif 'cancel_create_profile' in request.GET:
-            return render(request, 'main_page.html')
-        # If user requests to logout, return to login
-        elif 'logout' in request.GET:
-            return render(request, 'index.html')
+            get_spending_profiles()
+            return render(request, "main_page.html")
         # direct to login by default
         else:
             return render(request, 'index.html')
@@ -37,44 +45,90 @@ def index(request):
         # If request is a LOGIN POST request, get entered credentials
         if 'login' in request.POST:
             email = request.POST.get('email')
-            password = request.POST.get('password')
+            raw_password = request.POST.get('password')
 
-            # validate credentials
-            # placeholder check until DB setup
-            # if username == 'admin' and password == 'admin':
-            #     return render(request, 'main_page.html')
-            # else:
-            #     return render(request, 'index.html')
+            # validate user credentials
             
             # DB User credential check here
             
-            # Query Account table for account with entered credentials
-            temp_user = User(username=email)
-            temp_user.set_password(password)
-            query_account = User.objects.all().filter(email=email, password=temp_user.password)
-            print(query_account.exists())
-            # Check if it found a match
-            if query_account.exists():
-                # hash entered password to compare with DB
-                # hashed_password = make_password(password=password, salt=None, hasher='PBKDF2SHA1PasswordHasher')
-                
-                return render(request, 'main_page.html')
-            else:
-                account_not_found_warning = "Credentials did not match any existing user!"
-                return render(request, 'index.html', context={
-                    "account_not_found" : account_not_found_warning
-                })    
+            # # Query Account table for account with entered credentials
+            # query_account = User.objects.filter(username=email)
             
+            # # Check if User exits, if so, get the User model
+            # if query_account.exists(): 
+            #     query_account = query_account.get()
+            #     # Check if password matches
+            #     if query_account.check_password(raw_password):
+            #         if query_account.
+            #         return render(request, 'main_page.html')
+            #     else:
+            #         # Password did not match, return generic error message
+            #         account_not_found_warning = "Credentials did not match any existing user!"
+            #         return render(request, 'index.html', context={
+            #             "account_not_found" : account_not_found_warning
+            #         })  
+            # # Model did not exist, return generic error message
+            # else:
+            #     account_not_found_warning = "Credentials did not match any existing user!"
+            #     return render(request, 'index.html', context={
+            #         "account_not_found" : account_not_found_warning
+            #     })    
 
+            client_user = authenticate(request, username=email, password=raw_password)# or authenticate(email=email, password=raw_password)
+            if client_user is not None:
+                request.session.set_expiry(86400)
+                login(request, client_user)
+                get_spending_profiles()
+                return render(request, "main_page.html")
+            else:
+                return render(request, "index.html")
         
         elif 'create_new_account' in request.POST:
             # Get new credentials
             new_first_name = request.POST.get('first_name')
             new_last_name = request.POST.get('last_name')
+            new_username = request.POST.get('username')
             new_email = request.POST.get('email')
             unhashed_password = request.POST.get('password')
+            confirm_unhashed = request.POST.get('password_match')
             # print(f'First Name: {new_first_name}\nLast Name: {new_last_name}\nEmail: {new_email}\nPassword: {unhashed_password}')
+
+            # Check if passwords match
+            if unhashed_password != confirm_unhashed:
+                print("no match")
+                # Don't match, send error
+                warning_string = "Passwords Don't Match!"
+                return render(request, 'create_account.html', context={
+                    "account_creation_warning" : warning_string,
+                    "populate_first_name" : new_first_name,
+                    "populate_last_name" : new_last_name,
+                    "populate_username" : new_username,
+                    "populate_email" : new_email
+                })
+
+            # Check if username is over 30 characters
+            # Needs to be 30 or less for models
+            if new_username.__len__() > 30:
+                warning_string = "Username must be under 30 characters!"
+                return render(request, "create_account.html", context={
+                    "account_creation_warning" : warning_string,
+                    "populate_first_name" : new_first_name,
+                    "populate_last_name" : new_last_name,
+                    "populate_username" : "",
+                    "populate_email" : new_email
+                })
             
+            # Check is username is taken
+            if User.objects.filter(username=new_username).exists():
+                warning_string = "Username already exists!"
+                return render(request, "create_account.html", context={
+                    "account_creation_warning" : warning_string,
+                    "populate_first_name" : new_first_name,
+                    "populate_last_name" : new_last_name,
+                    "populate_username" : "",
+                    "populate_email" : new_email
+                })
+
             # Check if password is a common password
             
             # Read txt file with 10,000 common passwords, src: https://github.com/danielmiessler/SecLists/blob/master/Passwords/Common-Credentials/10k-most-common.txt
@@ -90,11 +144,17 @@ def index(request):
             # Iterate through common passwords until there is a match
             # If there is a match, redirect to create_account.html with a common password warning
             # Else, user did not enter a common password, proceed to creating user account
-            for password in content:
-                password = password[:len(password)-2]
-                if unhashed_password == password:
-                    warning_string = "Too Common A Password!"
-                    return render(request, "create_account.html", context={"common_password_warning" : warning_string})
+            for raw_password in content:
+                raw_password = raw_password[:len(raw_password)-2]
+                if unhashed_password == raw_password:
+                    warning_string = "<p >Too Common A Password!"
+                    return render(request, "create_account.html", context={
+                        "account_creation_warning" : warning_string,
+                        "populate_first_name" : new_first_name,
+                        "populate_last_name" : new_last_name,
+                        "populate_username" : new_username,
+                        "populate_email" : new_email
+                    })
             
             # If we passed the loop, the password is not common and can be used
             
@@ -105,14 +165,81 @@ def index(request):
             # new_account = Account(first_name=new_first_name, last_name=new_last_name, email=new_email, password=hashed_password)
             # new_account.save()
 
-            new_user = User(username=new_email)
-            new_user.set_password(unhashed_password)
+            new_user = User.objects.create_user(new_username, new_email, unhashed_password)
+            # new_user.set_password(unhashed_password)
             new_user.first_name = new_first_name
             new_user.last_name = new_last_name
             new_user.save()
 
             # Return to login
             return render(request, 'index.html')
+        # If user requests to logout, return to login
+        elif 'logout' in request.POST:
+            logout(request)
+            return render(request, 'index.html')
+        # If user requests to create a new profile
+        elif 'create_profile' in request.POST:
+            profile_name = request.POST.get("profile_name")
+            contributors = request.POST.get("contributors")
+            description = request.POST.get("description")
+
+            # process textarea results into list of names
+            contributors_processed = contributors.replace("\n", " ").replace("\r", " ").split(" ")
+            for i in contributors_processed:  
+                # also check if they added themselves as a contributor
+                if i == request.user.username:
+                    contributors_processed.remove(i)
+            
+            for i in contributors_processed:
+                if i.__len__() < 5:
+                    contributors_processed.remove(i)
+
+            print(contributors_processed)
+            # Check if contributors exists
+            for i in contributors_processed:
+                if not User.objects.filter(username=i).exists():
+                    warning_string = f'{i} does not match any registered users!'
+                    return render(request, "profile_creation.html", context={
+                        "profile_creation_warning" : warning_string,
+                        "populate_profile_name" : profile_name,
+                    })
+
+            # Check if profile name is within 30 character constraint
+            if profile_name.__len__() > 30:
+                warning_string = "Profile name must be 30 characters or less!"
+                return render(request, "profile_creation.html", context={
+                    "profile_creation_warning" : warning_string,
+                    "populate_profile_name" : profile_name,
+                })
+
+            # Check if description is within limit
+            if description.__len__() > 100:
+                warning_string = "Description must be 100 characters or less!"
+                return render(request, "profile_creation.html", context={
+                    "profile_creation_warning" : warning_string,
+                    "populate_profile_name" : profile_name,
+                })
+            
+            # If all checks pass, create profile
+            profile_data = {"ProfileName" : profile_name, "ProfileOwner" : request.user.username, 
+            "Description" : description, "Contributors" : {"contributor0" : request.user.username}, "Entries" : {} }
+            contributor_index = 1
+            for i in contributors_processed:
+                profile_data["Contributors"]["contributor" + str(contributor_index)] = i
+                contributor_index += 1
+            
+            print(profile_data)
+
+            new_spending_profile = SpendingProfile(profile_name=profile_name, profile_owner=request.user.username, data=profile_data)
+            new_spending_profile.save()
+
+            if SpendingProfile.objects.filter(profile_name=profile_name).exists():
+                print(True)
+            else:
+                print(False)
+
+            get_spending_profiles()
+            return render(request, "main_page.html")
         # Redirect to login by default
         else:
             return render(request, 'index.html')
@@ -120,5 +247,18 @@ def index(request):
     else:
         return render(request, 'index.html')
 
+
+def direct_to_main_page(request):
+    if request.user.is_authenticated:
+        return render(request, "main_page.html")   
+    return render(request, "index.html") 
+
+
+def direct_to_profile_creation_page(request):
+    if request.user.is_authenticated:
+        return render(request, "profile_creation.html")   
+    return render(request, "index.html") 
     
-    
+def get_spending_profiles():
+    profiles = SpendingProfile.objects.all()
+    print(profiles)

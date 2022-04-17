@@ -22,40 +22,56 @@
                 {% csrf_token %}
                 <div class="row"><h2 style="margin-top: 50px;">Account Creation</h2></div>
                 <div class="row"><h4>Acount Details</h4>
-                    <div class="col-sm-auto">
-                        {{ common_password_warning }}
+                    <div class="col-sm-auto" style="color:red">
+                        {{ account_creation_warning }}
                     </div>
                 </div>
                 <div class="row">
-                    <div class="col-sm-auto">
+                    <div class="col-sm-2">
                         <label>First Name</label>
                     </div>
-                    <div class="col-sm-auto">
-                        <input type="text" name="first_name">
+                    <div class="col-sm-2">
+                        <input type="text" name="first_name" value={{ populate_first_name }}>
                     </div>
                 </div>
                 <div class="row">
-                    <div class="col-sm-auto">
+                    <div class="col-sm-2">
                         <label>Last Name</label>
                     </div>
-                    <div class="col-sm-auto">
-                        <input type="text" name="last_name">
+                    <div class="col-sm-2">
+                        <input type="text" name="last_name" value={{ populate_last_name }}>
                     </div>
                 </div>
                 <div class="row">
-                    <div class="col-sm-1">
+                    <div class="col-sm-2">
+                        <label>Username</label>
+                    </div>
+                    <div class="col-sm-2">
+                        <input type="text" name="username" value={{ populate_username }}>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-sm-2">
                         <label>Email</label>
                     </div>
-                    <div class="col-sm-auto">
-                        <input type="text" name="email">
+                    <div class="col-sm-2">
+                        <input type="text" name="email" value={{ populate_email }}>
                     </div>
                 </div>
                 <div class="row">
-                    <div class="col-sm-auto">
+                    <div class="col-sm-2">
                         <label>Password</label>
                     </div>
-                    <div class="col-sm-auto">
+                    <div class="col-sm-2">
                         <input type="password" name="password">
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-sm-2">
+                        <label>Confirm</label><br>
+                    </div>
+                    <div class="col-sm-2">
+                        <input type="password" name="password_match">
                     </div>
                 </div>
                 <div class="row">

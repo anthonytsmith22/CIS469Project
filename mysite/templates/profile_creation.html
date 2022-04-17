@@ -18,28 +18,32 @@
 
     <body style="background-color: antiquewhite;">
         <div class="container" style="margin-top: 50px; margin-bottom: 50px; background-color: aliceblue;">
-            <form action="create_profile">
+            <form action="" method="POST">
+                {% csrf_token %}
                 <div class="row"><h2 style="margin-top: 20px;">Profile Creation</h2></div>
+                <div class="col-sm-auto" style="color:red">
+                    {{ profile_creation_warning }}
+                </div>
                 <div class="row"><h4>Name</h4></div>
                 <div class="row">
                     <div class="col-sm-4">
-                        <input type="text" value="Profile name" name="profile_name">
+                        <input type="text" value="Profile name" name="profile_name" value={{ populate_profile_name }}>
                     </div>
                 </div>
                 <div class="row"><h4>Contributors</h4></div>
-                <div class="row">
+                {% comment %} <div class="row">
                     <div class="col-sm-2">
                         <input type="text" name="contributor">
                     </div>
                     <div class="col-sm-2">
                         <button name="Add_Contributor">Add Contributor</button>
                     </div>
-                </div>
+                </div> {% endcomment %}
                 <div class="row">
                     <div class="col-sm-4">
                         <div class="form-group">
-                            <label>Contributors</label>
-                            <textarea readonly class="form-control rounded-0" rows="6" style="resize: none;"></textarea>
+                            
+                            <textarea class="form-control rounded-0" rows="6" style="resize: none;" name="contributors" value={{ populate_contributors }}></textarea>
                         </div>
                     </div>
                 </div>
@@ -49,13 +53,13 @@
                 <div class="row">
                     <div class="col-sm-6">
                         <div class="form-group">
-                            <textarea class="form-control rounded-0" rows="1" style="resize: none;"></textarea>
+                            <textarea class="form-control rounded-0" rows="1" style="resize: none;" name="description" value={{ populate_description }}></textarea>
                         </div>
                     </div>
                 </div>
                 <div class="row">
                     <div class="col">
-                        <input type="submit" name="Create_Profile" value="Create New Profile">
+                        <input type="submit" name="create_profile" value="Create New Profile">
                     </div>
                 </div>
             </form>
