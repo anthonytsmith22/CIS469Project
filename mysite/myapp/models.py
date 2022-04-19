@@ -13,6 +13,5 @@ class SpendingProfile(models.Model):
 class Entry(models.Model):
     entry_date = models.DateField
     entry_name = models.CharField(max_length=20)
-    entry_description = models.CharField(max_length=40)
     entry_amount = models.FloatField
     entry_owner = models.CharField(max_length=30)

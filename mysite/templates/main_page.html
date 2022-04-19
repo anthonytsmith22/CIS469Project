@@ -21,19 +21,24 @@
                     <h3>Entries</h3>
                 </div>
             </div>
+            <div class="row" style="color: red">
+                {{ main_page_warning }}
+            </div>
 
             <div class="row">
                 <div class="col-sm-1">
-                    <form action="select_profile">
-                        <select name="select_profile" id="select_profile">
+                    <form action="" method="POST">
+                        {% csrf_token %}
+                        <select name="select_profile_option" id="select_profile">
                             <option value="default">No profiles</option>
                         
                         </select>
+                        <div class="col-sm-1">
+                            <input type="submit" value="Select" name="select_profile">
+                        </div>
                     </form>
                 </div>
-                <div class="col-sm-1">
-                    <button>Select</button>
-                </div>
+                
                 <div class="col-sm-8">
                     
                 </div>
@@ -49,26 +54,7 @@
                         <th scope="col">Amount</th>
                         <th scope="col">Date</th>
                         <th scope="col">Contributor</th>
-                        <tr>
-                            <td></td>
-                            <td></td>
-                            <td></td>
-                            <td></td>
-                        </tr>
-
-                        <tr>
-                            <td></td>
-                            <td></td>
-                            <td></td>
-                            <td></td>
-                        </tr>
-
-                        <tr>
-                            <td></td>
-                            <td></td>
-                            <td></td>
-                            <td></td>
-                        </tr>
+                        {{ entry_table }}
                     </table>
                 </div>
             </div>
@@ -81,7 +67,8 @@
                 </div>
             </div>
 
-            <form action="create_entry">
+            <form action="" method="POST">
+                {% csrf_token %}
                 <div class="row" style="margin-top: 10px; margin-bottom: 10px;">
                     <div class="col-sm-3">
                         <nobr>Entry Name:</nobr>
@@ -98,7 +85,7 @@
                         </select>
                     </div>
                     <div class="col-sm-2">
-                        <input type="submit" value="Create Entry">
+                        <input type="submit" value="Create Entry" name="create_entry">
                     </div>
                 </div>
             </form>

@@ -1,6 +1,7 @@
 from asyncio.windows_events import NULL
 import email
 from logging import warning
+import profile
 from pydoc import cli
 from telnetlib import LOGOUT
 from wsgiref.util import request_uri
@@ -14,8 +15,11 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 import json
 from myapp.models import SpendingProfile, Entry
+from datetime import date
+import uuid
 
 client_user = NULL
+selected_profile = NULL
 
 def index(request):
     # Check the method type for GET or POST
@@ -240,6 +244,44 @@ def index(request):
 
             get_spending_profiles()
             return render(request, "main_page.html")
+        # If user selecs spending profile
+        elif "select_profile" in request.POST:
+            selected_profile_name = request.POST["select_profile_option"]
+            selected_profile = SpendingProfile.objects.filter(profile_name=selected_profile_name)
+            profile_data = selected_profile.get("data")
+            entries = profile_data["Entries"]
+            
+            # Fill table with entries
+            entries_html = ""
+            for entry in entries:
+                entries_html += f'<tr><td>{entry["name"]}</td><td>{entry["amount"]}</td><td>{entry["date"]}</td><td>{entry["owner"]}</td></tr>'
+            return render(request, "main_page.html", context={
+                "entry_table" : entries_html
+            })
+        # If user is creating a spending entry
+        elif "create_entry" in request.POST:
+            entry_name = request.POST["entry_name"]
+            entry_amount = request.POST["entry_amount"]
+            if request.POST["contributor_name"] == "None":
+                entry_owner = request.user.username
+            else:
+                entry_owner = request.POST["contributor_name"]
+            entry_date = date.today
+            if selected_profile == NULL:
+                main_page_warning = "No Profile Selected!"
+                return render(request, "main_page.html", context={
+                    "main_page_warning" : main_page_warning
+                })
+            new_id = str(uuid.uuid4())
+            profile_data["Entries"][new_id]["name"] = entry_name
+            profile_data["Entries"][new_id]["amount"] = entry_amount
+            profile_data["Entries"][new_id]["owner"] = entry_owner
+            profile_data["Entries"][new_id]["date"] = entry_date
+
+            
+
+            return
+
         # Redirect to login by default
         else:
             return render(request, 'index.html')
