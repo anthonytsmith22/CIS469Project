@@ -4,6 +4,7 @@ from logging import warning
 import profile
 from pydoc import cli
 from telnetlib import LOGOUT
+from venv import create
 from wsgiref.util import request_uri
 from django.shortcuts import render
 import os
@@ -20,6 +21,7 @@ import uuid
 
 client_user = NULL
 selected_profile = NULL
+create_spending_profile_usernames = []
 
 def index(request):
     # Check the method type for GET or POST
@@ -39,6 +41,7 @@ def index(request):
         # If they cancel spending profile creation, return to main page
         elif 'cancel_create_profile' in request.GET:
             get_spending_profiles()
+            create_spending_profile_usernames = []
             return render(request, "main_page.html")
         # direct to login by default
         else:
@@ -180,7 +183,34 @@ def index(request):
         # If user requests to logout, return to login
         elif 'logout' in request.POST:
             logout(request)
+            create_spending_profile_usernames = []
             return render(request, 'index.html')
+        # If user adds a username to profile creation
+        elif 'add_contributor' in request.POST:
+            get_username = request.POST["contributor"].strip()
+            # Check if user entered a value
+            if get_username.__len__() == 0:
+                warning_string = "Contributor username must not be left blank!"
+                return render(request, "profile_creation.html", context={
+                    "profile_creation_warning" : warning_string
+                })
+            # Do check to find user
+            get_user = User.objects.filter(username=get_username)
+            if not get_user.exists():
+                warning_string = f'No user found by name {get_username}!'
+                return render(request, "profile_creation.html", context={
+                    "profile_creation_warning" : warning_string
+                })
+            # Found valid user
+            create_spending_profile_usernames = []
+            create_spending_profile_usernames.append(get_username)
+            contributors_string = ""
+            for contributor in create_spending_profile_usernames:
+                contributors_string += contributor
+                contributors_string += "\n"
+            return render(request, "profile_creation.html", context={
+                "populate_contributors" : create_spending_profile_usernames
+            })
         # If user requests to create a new profile
         elif 'create_profile' in request.POST:
             profile_name = request.POST.get("profile_name")
