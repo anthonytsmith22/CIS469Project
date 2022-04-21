@@ -283,15 +283,29 @@ def index(request):
             else:
                 print(False)
 
-            return render(request, "main_page.html")
+            user_associated_profiles = load_profiles(request.user.username)
+            profile_names = []
+            for profile in user_associated_profiles:
+                profile_names.append(profile["ProfileName"])
+            print(profile_names)
+            return render(request, "main_page.html", context={
+                "profiles" : profile_names
+            })
         # If user selecs spending profile
         elif "select_profile" in request.POST:
             selected_profile_name = request.POST["select_profile_option"]
             print(f'{selected_profile_name} test get')
+            user_associated_profiles = load_profiles(request.user.username)
+            profile_names = []
+            for profile in user_associated_profiles:
+                profile_names.append(profile["ProfileName"])
+            print(profile_names)
+            
             if selected_profile_name == "default":
                 return render(request, "main_page.html", context={
-                    "main_page_warning" : "No Profile Selected!"
-                })
+                "profiles" : profile_names,
+                "main_page_warning" : "No Profile Selected!"
+            })
             selected_profile = SpendingProfile.objects.filter(profile_name=selected_profile_name).get()
             profile_data = selected_profile.data
             user_associated_profiles = load_profiles(request.user.username)
@@ -352,15 +366,11 @@ def index(request):
                     "profiles" : profile_names
                 })
 
-            if request.POST["contributor_name"] == "default":
-                entry_owner = request.user.username
-            else:
-                entry_owner = request.POST["contributor_name"]
             entry_date = datetime.today().strftime('%Y-%m-%d')
 
             new_id = str(uuid.uuid4())
 
-            entry_data = {"Name" : entry_name, "Amount" : entry_amount, "Contributor" : entry_owner, "Date" : entry_date}
+            entry_data = {"Name" : entry_name, "Amount" : entry_amount, "Contributor" : request.user.username, "Date" : entry_date}
             
             # spending_profile_data = spending_profile.data
             # spending_profile_data["Entries"][new_id] = entry_data
@@ -422,20 +432,17 @@ def get_profile_data(profile):
     spending_total = 0
 
     data = []
-    
+        
     profile_contributors = profile.data["Contributors"]
-    names = []
+    contributor_data = []
     index = 0
-    contributor_data = {}
     for x in range(profile_contributors.__len__()):
         key = f'contributor{index}'
-        names.append(profile_contributors[key])
-        contributor_data[names[index]] = 0
+        contributor_data.append([profile_contributors[key], 0])
         index += 1
     
     
     for entry in entries:
-        print(f'{entry} test entry data')
         name = entries[entry]["Name"]
         amount = entries[entry]["Amount"]
         date = entries[entry]["Date"]
@@ -443,6 +450,11 @@ def get_profile_data(profile):
         
         spending_total += int(amount)
 
+        for i in contributor_data:
+            if i[0] == contributor:
+                i[1] += int(amount)
+                break
+        
         entry_data = []
 
         entry_data.append(name)
@@ -451,7 +463,7 @@ def get_profile_data(profile):
         entry_data.append(contributor)
 
         data.append(entry_data)
-        contributor_data[name] += int(amount)
+
     print(f'{data} test data')
     
     return data, spending_total, contributor_data
