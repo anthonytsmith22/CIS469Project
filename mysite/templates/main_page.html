@@ -17,8 +17,11 @@
                 <div class="col-sm-2">
                     <h3>Profiles</h3>
                 </div>
-                <div class="col-sm-10">
+                <div class="col-sm-6">
                     <h3>Entries</h3>
+                </div>
+                <div class="col-sm-2">
+                    <h3>Contributors</h3>
                 </div>
             </div>
             <div class="row" style="color: red">
@@ -31,7 +34,9 @@
                         {% csrf_token %}
                         <select name="select_profile_option" id="select_profile">
                             <option value="default">No profiles</option>
-                        
+                            {% for i in profiles %}
+                                <option value={{i}}>{{i}}</option>
+                            {% endfor %}
                         </select>
                         <div class="col-sm-1">
                             <input type="submit" value="Select" name="select_profile">
@@ -46,37 +51,77 @@
 
             <div class="row">
                 <div class="col-sm-2">
-                    <nobr>Current Mark:</nobr>
+                    <nobr>Current Total: {{ total_amount }}</nobr>
                 </div>
-                <div class="col-sm-8" style="margin-bottom: 20px">
+                <div class="col-sm-6" style="margin-bottom: 20px">
                     <table class="table" style="border: 1px solid black; background-color:white">
-                        <th scope="col">Table</th>
+                        <th scope="col">Name</th>
                         <th scope="col">Amount</th>
                         <th scope="col">Date</th>
                         <th scope="col">Contributor</th>
-                        {{ entry_table }}
+                        
+                        {% for entry in profile_data %}
+                            <tr>
+                                <td>
+                                    {{ entry.0 }}
+                                </td>
+                                <td>
+                                    {{ entry.1 }}
+                                </td>
+                                <td>
+                                    {{ entry.2 }}
+                                </td>
+                                <td>
+                                    {{ entry.3 }}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </table>
+                </div>
+                <div class="col-sm-3" style="margin-bottom: 20px">
+                    <table class="table" style="border: 1px solid black; background-color:white">
+                        <th scope="col">Contributor</th>
+                        <th scope="col">Amount</th>
+                        
+                        
+                        {% for data in contributor_data %}
+                            <tr>
+                                <td>
+                                    {{ data.0 }}
+                                </td>
+                                <td>
+                                    {{ data.1 }}
+                                </td>
+                            </tr>
+                        {% endfor %}
                     </table>
                 </div>
             </div>
         </div>
 
         <div class="container" style="border: 1px solid black; background-color: aliceblue;">
-            <div class="row">
-                <div class="col-sm-2">
-                    <h4>Create Entry</h4>
-                </div>
-            </div>
+            
 
             <form action="" method="POST">
                 {% csrf_token %}
+                <div class="row">
+                    <div class="col-sm-2">
+                        <h4>Create Entry</h4>
+                    </div>
+                </div>
+                
                 <div class="row" style="margin-top: 10px; margin-bottom: 10px;">
-                    <div class="col-sm-3">
-                        <nobr>Entry Name:</nobr>
-                        <input type="text" id="entry_name" name="entry_name">
+                    <div class="col-sm-2">
+                        <nobr>Profile:</nobr>
+                        <input readonly type="test" id="profile_name" size="10" maxlength="10" name="profile_name" value={{ selected_profile_name }}>
                     </div>
                     <div class="col-sm-3">
+                        <nobr>Entry Name:</nobr>
+                        <input type="text" id="entry_name" size="10" maxlength="10" name="entry_name">
+                    </div>
+                    <div class="col-sm-2">
                         <nobr>Amount:</nobr>
-                        <input type="text" id="entry_amount" name="entry_amount">
+                        <input type="text" id="entry_amount" size="10" maxlength="10" name="entry_amount">
                     </div>
                     <div class="col-sm-2">
                         <nobr>Contributor:</nobr>

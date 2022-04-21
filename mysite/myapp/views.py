@@ -1,6 +1,7 @@
 from asyncio.windows_events import NULL
 import email
 from logging import warning
+from multiprocessing.sharedctypes import Value
 import profile
 from pydoc import cli
 from telnetlib import LOGOUT
@@ -16,20 +17,20 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 import json
 from myapp.models import SpendingProfile, Entry
-from datetime import date
+from datetime import datetime
 import uuid
 
 client_user = NULL
 selected_profile = NULL
-create_spending_profile_usernames = []
 
 def index(request):
+
     # Check the method type for GET or POST
     
     # If method type is of type GET
     if request.method == 'GET':
         # direct user to account creation page if they send create account GET
-        if 'create_account' in request.GET:
+        if 'create_account' in request.GET:               
             return render(request, 'create_account.html')
         # if they request return to login, redirect them back to login
         elif 'return_to_login' in request.GET:
@@ -40,9 +41,14 @@ def index(request):
             #direct_to_profile_creation_page(request)
         # If they cancel spending profile creation, return to main page
         elif 'cancel_create_profile' in request.GET:
-            get_spending_profiles()
-            create_spending_profile_usernames = []
-            return render(request, "main_page.html")
+            user_associated_profiles = load_profiles(request.user.username)
+            profile_names = []
+            for profile in user_associated_profiles:
+                profile_names.append(profile["ProfileName"])
+            print(profile_names)
+            return render(request, "main_page.html", context={
+                "profiles" : profile_names
+            })
         # direct to login by default
         else:
             return render(request, 'index.html')
@@ -85,8 +91,14 @@ def index(request):
             if client_user is not None:
                 request.session.set_expiry(86400)
                 login(request, client_user)
-                get_spending_profiles()
-                return render(request, "main_page.html")
+                user_associated_profiles = load_profiles(request.user.username)
+                profile_names = []
+                for profile in user_associated_profiles:
+                    profile_names.append(profile["ProfileName"])
+                print(profile_names)
+                return render(request, "main_page.html", context={
+                    "profiles" : profile_names
+                })
             else:
                 return render(request, "index.html")
         
@@ -183,7 +195,6 @@ def index(request):
         # If user requests to logout, return to login
         elif 'logout' in request.POST:
             logout(request)
-            create_spending_profile_usernames = []
             return render(request, 'index.html')
         # If user adds a username to profile creation
         elif 'add_contributor' in request.POST:
@@ -202,23 +213,23 @@ def index(request):
                     "profile_creation_warning" : warning_string
                 })
             # Found valid user
-            create_spending_profile_usernames = []
-            create_spending_profile_usernames.append(get_username)
-            contributors_string = ""
-            for contributor in create_spending_profile_usernames:
-                contributors_string += contributor
-                contributors_string += "\n"
+            # contributors_string = ""
+            # for contributor in SPENDING_PROFILE_USERNAMES:
+            #     contributors_string += str(contributor)
+            #     contributors_string += "\n"
+            # print(contributors_string)
             return render(request, "profile_creation.html", context={
-                "populate_contributors" : create_spending_profile_usernames
+                "populate_contributors" : get_username
             })
         # If user requests to create a new profile
         elif 'create_profile' in request.POST:
+
             profile_name = request.POST.get("profile_name")
             contributors = request.POST.get("contributors")
             description = request.POST.get("description")
 
             # process textarea results into list of names
-            contributors_processed = contributors.replace("\n", " ").replace("\r", " ").split(" ")
+            contributors_processed = contributors.replace("\n", " ").replace("\r", " ").strip().split(" ")
             for i in contributors_processed:  
                 # also check if they added themselves as a contributor
                 if i == request.user.username:
@@ -272,45 +283,101 @@ def index(request):
             else:
                 print(False)
 
-            get_spending_profiles()
             return render(request, "main_page.html")
         # If user selecs spending profile
         elif "select_profile" in request.POST:
             selected_profile_name = request.POST["select_profile_option"]
-            selected_profile = SpendingProfile.objects.filter(profile_name=selected_profile_name)
-            profile_data = selected_profile.get("data")
-            entries = profile_data["Entries"]
-            
-            # Fill table with entries
-            entries_html = ""
-            for entry in entries:
-                entries_html += f'<tr><td>{entry["name"]}</td><td>{entry["amount"]}</td><td>{entry["date"]}</td><td>{entry["owner"]}</td></tr>'
+            print(f'{selected_profile_name} test get')
+            if selected_profile_name == "default":
+                return render(request, "main_page.html", context={
+                    "main_page_warning" : "No Profile Selected!"
+                })
+            selected_profile = SpendingProfile.objects.filter(profile_name=selected_profile_name).get()
+            profile_data = selected_profile.data
+            user_associated_profiles = load_profiles(request.user.username)
+            profile_names = []
+            for profile in user_associated_profiles:
+                profile_names.append(profile["ProfileName"])
+            data, spending_total, contributor_data = get_profile_data(selected_profile)
             return render(request, "main_page.html", context={
-                "entry_table" : entries_html
+                "profile_data" : data,
+                "total_amount" : spending_total,
+                "selected_profile_name": selected_profile_name,
+                "profiles" : profile_names,
+                "contributor_data" : contributor_data
             })
         # If user is creating a spending entry
         elif "create_entry" in request.POST:
             entry_name = request.POST["entry_name"]
             entry_amount = request.POST["entry_amount"]
-            if request.POST["contributor_name"] == "None":
+            profile_name = request.POST["profile_name"]
+
+            spending_profile = SpendingProfile.objects.filter(profile_name=profile_name)
+
+            if spending_profile.exists():
+                spending_profile = spending_profile.get()
+            else:
+                return render(request, "main_page.html", context={
+                    "main_page_warning" : f'Spending Profile Not Found!'
+                })
+
+            try:
+                entry_amount = int(entry_amount)
+            except ValueError:
+                user_associated_profiles = load_profiles(request.user.username)
+                profile_names = []
+                for profile in user_associated_profiles:
+                    profile_names.append(profile["ProfileName"])
+                data, spending_total, contributor_data = get_profile_data(spending_profile)
+                return render(request, "main_page.html", context={
+                    "main_page_warning" : "Amount must be a number!",
+                    "profile_data" : data,
+                    "total_amount" : spending_total,
+                    "selected_profile_name": profile_name,
+                    "profiles" : profile_names,
+                    "contributor_data" : contributor_data
+                })
+            
+            if entry_amount <= 0:
+                user_associated_profiles = load_profiles(request.user.username)
+                profile_names = []
+                for profile in user_associated_profiles:
+                    profile_names.append(profile["ProfileName"])
+                data, spending_total = get_profile_data(spending_profile)
+                return render(request, "main_page.html", context={
+                    "main_page_warning" : "Amount must be a positive number!",
+                    "profile_data" : data,
+                    "total_amount" : spending_total,
+                    "selected_profile_name": profile_name,
+                    "profiles" : profile_names
+                })
+
+            if request.POST["contributor_name"] == "default":
                 entry_owner = request.user.username
             else:
                 entry_owner = request.POST["contributor_name"]
-            entry_date = date.today
-            if selected_profile == NULL:
-                main_page_warning = "No Profile Selected!"
-                return render(request, "main_page.html", context={
-                    "main_page_warning" : main_page_warning
-                })
+            entry_date = datetime.today().strftime('%Y-%m-%d')
+
             new_id = str(uuid.uuid4())
-            profile_data["Entries"][new_id]["name"] = entry_name
-            profile_data["Entries"][new_id]["amount"] = entry_amount
-            profile_data["Entries"][new_id]["owner"] = entry_owner
-            profile_data["Entries"][new_id]["date"] = entry_date
 
+            entry_data = {"Name" : entry_name, "Amount" : entry_amount, "Contributor" : entry_owner, "Date" : entry_date}
             
+            # spending_profile_data = spending_profile.data
+            # spending_profile_data["Entries"][new_id] = entry_data
 
-            return
+            spending_profile.data["Entries"][new_id] = entry_data
+            print(spending_profile.data)
+            spending_profile.save()
+            # spending_profile.save()
+            
+            user_associated_profiles = load_profiles(request.user.username)
+            profile_names = []
+            for profile in user_associated_profiles:
+                profile_names.append(profile["ProfileName"])
+            print(profile_names)
+            return render(request, "main_page.html", context={
+                "profiles" : profile_names
+            })
 
         # Redirect to login by default
         else:
@@ -334,3 +401,57 @@ def direct_to_profile_creation_page(request):
 def get_spending_profiles():
     profiles = SpendingProfile.objects.all()
     print(profiles)
+
+def load_profiles(username):
+    all_profiles = SpendingProfile.objects.all()
+    user_associated_profiles = []
+    for i in all_profiles:
+        profile_data = i.data
+        profile_contributors = profile_data["Contributors"]
+        index = 0
+        for x in range(profile_contributors.__len__()):
+            key = f'contributor{index}'
+            if username == profile_contributors[key]: 
+                user_associated_profiles.append(profile_data)
+                break
+            index += 1
+    return user_associated_profiles
+
+def get_profile_data(profile):
+    entries = profile.data["Entries"]
+    spending_total = 0
+
+    data = []
+    
+    profile_contributors = profile.data["Contributors"]
+    names = []
+    index = 0
+    contributor_data = {}
+    for x in range(profile_contributors.__len__()):
+        key = f'contributor{index}'
+        names.append(profile_contributors[key])
+        contributor_data[names[index]] = 0
+        index += 1
+    
+    
+    for entry in entries:
+        print(f'{entry} test entry data')
+        name = entries[entry]["Name"]
+        amount = entries[entry]["Amount"]
+        date = entries[entry]["Date"]
+        contributor = entries[entry]["Contributor"]
+        
+        spending_total += int(amount)
+
+        entry_data = []
+
+        entry_data.append(name)
+        entry_data.append(amount)
+        entry_data.append(date)
+        entry_data.append(contributor)
+
+        data.append(entry_data)
+        contributor_data[name] += int(amount)
+    print(f'{data} test data')
+    
+    return data, spending_total, contributor_data
